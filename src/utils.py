@@ -10,7 +10,7 @@ from tqdm import tqdm
 import numpy as np
 from pathlib import Path
 from functools import partial
-import requests
+
 import urllib
 from PIL import Image
 
@@ -39,18 +39,68 @@ def parse_string(s):
     return number, unit
 
 
-def create_placeholder_image(image_save_path):
-    try:
-        placeholder_image = Image.new('RGB', (100, 100), color='black')
-        placeholder_image.save(image_save_path)
-    except Exception as e:
-        return
+# def create_placeholder_image(image_save_path):
+#     try:
+#         placeholder_image = Image.new('RGB', (100, 100), color='black')
+#         placeholder_image.save(image_save_path)
+#     except Exception as e:
+#         return
 
-def download_image(image_link, save_folder, retries=3, delay=3):
+# def download_image(image_link, save_folder, retries=3, delay=3):
+#     if not isinstance(image_link, str):
+#         return
+
+#     filename = Path(image_link).name
+#     image_save_path = os.path.join(save_folder, filename)
+
+#     if os.path.exists(image_save_path):
+#         return
+
+#     for _ in range(retries):
+#         try:
+#             urllib.request.urlretrieve(image_link, image_save_path)
+#             return
+#         except:
+#             time.sleep(delay)
+    
+#     create_placeholder_image(image_save_path) #Create a black placeholder image for invalid links/images
+
+# def download_images(image_links, download_folder, allow_multiprocessing=True):
+#     if not os.path.exists(download_folder):
+#         os.makedirs(download_folder)
+
+#     if allow_multiprocessing:
+#         download_image_partial = partial(
+#             download_image, save_folder=download_folder, retries=3, delay=3)
+
+#         with multiprocessing.Pool(64) as pool:
+#             list(tqdm(pool.imap(download_image_partial, image_links), total=len(image_links)))
+#             pool.close()
+#             pool.join()
+#     else:
+#         for image_link in tqdm(image_links, total=len(image_links)):
+#             download_image(image_link, save_folder=download_folder, retries=3, delay=3)
+        
+import os
+import urllib.request
+import time
+from pathlib import Path
+from functools import partial
+import multiprocessing
+
+
+# A helper function that creates a placeholder image (black image) for invalid links
+def create_placeholder_image(image_save_path):
+    from PIL import Image
+    image = Image.new('RGB', (100, 100), color='black')
+    image.save(image_save_path)
+
+def download_image(image_link, save_folder, image_number, retries=3, delay=3):
     if not isinstance(image_link, str):
         return
 
-    filename = Path(image_link).name
+    # Use the image_number to create a sequential name
+    filename = f"{image_number}.jpg"
     image_save_path = os.path.join(save_folder, filename)
 
     if os.path.exists(image_save_path):
@@ -63,7 +113,7 @@ def download_image(image_link, save_folder, retries=3, delay=3):
         except:
             time.sleep(delay)
     
-    create_placeholder_image(image_save_path) #Create a black placeholder image for invalid links/images
+    create_placeholder_image(image_save_path)  # Create a black placeholder image for invalid links
 
 def download_images(image_links, download_folder, allow_multiprocessing=True):
     if not os.path.exists(download_folder):
@@ -73,11 +123,14 @@ def download_images(image_links, download_folder, allow_multiprocessing=True):
         download_image_partial = partial(
             download_image, save_folder=download_folder, retries=3, delay=3)
 
+        # Use a counter to generate sequential image names
         with multiprocessing.Pool(64) as pool:
-            list(tqdm(pool.imap(download_image_partial, image_links), total=len(image_links)))
+            for i, _ in enumerate(tqdm(pool.imap(download_image_partial, image_links), total=len(image_links)), 1):
+                download_image_partial(image_links[i-1], download_folder, image_number=i)
             pool.close()
             pool.join()
     else:
-        for image_link in tqdm(image_links, total=len(image_links)):
-            download_image(image_link, save_folder=download_folder, retries=3, delay=3)
-        
+        for i, image_link in enumerate(tqdm(image_links, total=len(image_links)), 1):
+            download_image(image_link, save_folder=download_folder, image_number=i, retries=3, delay=3)
+
+            
